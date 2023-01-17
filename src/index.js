@@ -167,7 +167,7 @@ const switchEthereumChain = document.getElementById('switchEthereumChain');
 const initialize = async () => {
   try {
     // We must specify the network as 'any' for ethers to allow network changes
-    ethersProvider = new ethers.providers.Web3Provider(window.ethereum, 'any');
+    ethersProvider = new ethers.providers.Web3Provider(window.qtum, 'any');
     if (deployedContractAddress) {
       hstContract = new ethers.Contract(
         deployedContractAddress,
