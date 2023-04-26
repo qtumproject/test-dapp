@@ -8,6 +8,37 @@ import {
   recoverTypedSignature_v4 as recoverTypedSignatureV4,
 } from 'eth-sig-util';
 import { ethers } from 'ethers';
+
+import {
+  // import QtumProvider as Provider, replacement for ethers Provider
+  // QtumProvider as Provider,
+  // import QtumWallet as Wallet, replacement for ethers Wallet
+  // QtumWallet as Wallet,
+  // import QtumContractFactory as ContractFactory, replacement for ethers ContractFactory
+  QtumContractFactory as ContractFactory,
+  // Qtum has two bip44 derivation paths, wallets use different ones
+  // this is optional, the default is SLIP_BIP44_PATH
+  // QTUM_BIP44_PATH, // Compatible with Qtum core wallet and electrum
+  // SLIP_BIP44_PATH,  // Compatible with 3rd party wallets
+  // Qtum uses compressed public/private keys and you need to consider them when doing cryptography
+  // these functions are replacements for ethers' ones
+  // they have an extra optional parameter to determine whether to use compressed or uncompressed keys (see below)
+  // computeAddress,
+  // recoverAddress,
+  // Qtum uses a different hash prefix for messages, use these ethers replacement functions
+  // hashMessage,
+  // messagePrefix
+} from 'qtum-ethers-wrapper';
+/*
+ethers.ContractFactory = ContractFactory;
+ethers.utils.hashMessage = hashMessage;
+ethers.utils.messagePrefix = messagePrefix;
+ethers.Wallet = Wallet;
+ethers.Provider = Provider;
+ethers.utils.computeAddress = computeAddress;
+ethers.utils.recoverAddress = recoverAddress;
+*/
+
 import { toChecksumAddress } from 'ethereumjs-util';
 import {
   hstBytecode,
@@ -23,6 +54,10 @@ import {
   erc1155Abi,
   erc1155Bytecode,
 } from './constants.json';
+
+if (window.qtum) {
+  window.ethereum = window.qtum;
+}
 
 let ethersProvider;
 let hstFactory;
@@ -200,8 +235,10 @@ const toDiv = document.getElementById('toInput');
 const type = document.getElementById('typeInput');
 const amount = document.getElementById('amountInput');
 const gasPrice = document.getElementById('gasInput');
+/*
 const maxFee = document.getElementById('maxFeeInput');
 const maxPriority = document.getElementById('maxPriorityFeeInput');
+*/
 const data = document.getElementById('dataInput');
 const gasPriceDiv = document.getElementById('gasPriceDiv');
 const maxFeeDiv = document.getElementById('maxFeeDiv');
@@ -248,22 +285,22 @@ const initialize = async () => {
         ethersProvider.getSigner(),
       );
     }
-    hstFactory = new ethers.ContractFactory(
+    hstFactory = new ContractFactory(
       hstAbi,
       hstBytecode,
       ethersProvider.getSigner(),
     );
-    piggybankFactory = new ethers.ContractFactory(
+    piggybankFactory = new ContractFactory(
       piggybankAbi,
       piggybankBytecode,
       ethersProvider.getSigner(),
     );
-    collectiblesFactory = new ethers.ContractFactory(
+    collectiblesFactory = new ContractFactory(
       collectiblesAbi,
       collectiblesBytecode,
       ethersProvider.getSigner(),
     );
-    failingContractFactory = new ethers.ContractFactory(
+    failingContractFactory = new ContractFactory(
       failingContractAbi,
       failingContractBytecode,
       ethersProvider.getSigner(),
@@ -533,7 +570,8 @@ const initialize = async () => {
       contractStatus.innerHTML = 'Deposit initiated';
       const result = await piggybankContract.deposit({
         from: accounts[0],
-        value: '0x3782dace9d900000',
+        value: '0x5F5E100',
+        gasLimit: '52000',
       });
       console.log(result);
       const receipt = await result.wait();
@@ -542,8 +580,9 @@ const initialize = async () => {
     };
 
     withdrawButton.onclick = async () => {
-      const result = await piggybankContract.withdraw('0xde0b6b3a7640000', {
+      const result = await piggybankContract.withdraw('0x5F5E100', {
         from: accounts[0],
+        gasLimit: '62000',
       });
       console.log(result);
       const receipt = await result.wait();
@@ -587,8 +626,11 @@ const initialize = async () => {
               to: failingContract.address,
               value: '0x0',
               gasLimit: '0x5028',
+              gasPrice: '0x28',
+              /*
               maxFeePerGas: '0x2540be400',
               maxPriorityFeePerGas: '0x3b9aca00',
+              */
             },
           ],
         });
@@ -635,10 +677,16 @@ const initialize = async () => {
             {
               from: accounts[0],
               to: multisigContract.address,
+              value: '0x5F5E100',
+              /*
               value: '0x16345785D8A0', // 24414062500000
+              */
               gasLimit: '0x5028',
+              gasPrice: '0x28',
+              /*
               maxFeePerGas: '0x2540be400',
               maxPriorityFeePerGas: '0x3b9aca00',
+              */
             },
           ],
         });
@@ -902,7 +950,7 @@ const initialize = async () => {
             to: '0x0c54FcCd2e384b4BB6f2E405Bf5Cbc15a017AaFb',
             value: '0x0',
             gasLimit: '0x5028',
-            gasPrice: '0x2540be400',
+            gasPrice: '0x28',
             type: '0x0',
           },
         ],
@@ -919,8 +967,11 @@ const initialize = async () => {
             to: '0x0c54FcCd2e384b4BB6f2E405Bf5Cbc15a017AaFb',
             value: '0x0',
             gasLimit: '0x5028',
-            maxFeePerGas: '0x2540be400',
-            maxPriorityFeePerGas: '0x3b9aca00',
+            gasPrice: '0x28',
+            /*
+            maxFeePerGas: '0x64',
+            maxPriorityFeePerGas: '0x64',
+            */
           },
         ],
       });
@@ -988,7 +1039,7 @@ const initialize = async () => {
         {
           from: accounts[0],
           gasLimit: 60000,
-          gasPrice: '20000000000',
+          gasPrice: '0x28',
         },
       );
       console.log('result', result);
@@ -1001,7 +1052,7 @@ const initialize = async () => {
         {
           from: accounts[0],
           gasLimit: 60000,
-          gasPrice: '20000000000',
+          gasPrice: '0x28',
         },
       );
       console.log('result', result);
@@ -1014,7 +1065,7 @@ const initialize = async () => {
           ? 1
           : `${1.5 * 10 ** decimalUnitsInput.value}`,
         {
-          gasPrice: '20000000000',
+          gasPrice: '0x28',
         },
       );
       console.log('result', result);
@@ -1025,7 +1076,7 @@ const initialize = async () => {
         '0x2f318C334780961FB129D2a6c30D0763d9a5C970',
         `${7 * 10 ** decimalUnitsInput.value}`,
         {
-          gasPrice: '20000000000',
+          gasPrice: '0x28',
         },
       );
       console.log('result', result);
@@ -1166,8 +1217,11 @@ const initialize = async () => {
           from: accounts[0],
           to: toDiv.value,
           value: amount.value,
+          gasPrice: '0x28',
+          /*
           maxFeePerGas: maxFee.value,
           maxPriorityFeePerGas: maxPriority.value,
+          */
           type: type.value,
           data: data.value,
         },
