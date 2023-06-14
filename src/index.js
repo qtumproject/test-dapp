@@ -2,10 +2,13 @@ import MetaMaskOnboarding from '@metamask/onboarding';
 // eslint-disable-next-line camelcase
 import {
   encrypt,
+  typedSignatureHash,
+  /*
   recoverPersonalSignature,
   recoverTypedSignatureLegacy,
   recoverTypedSignature,
   recoverTypedSignature_v4 as recoverTypedSignatureV4,
+  */
 } from 'eth-sig-util';
 import { ethers } from 'ethers';
 
@@ -24,7 +27,12 @@ import {
   // these functions are replacements for ethers' ones
   // they have an extra optional parameter to determine whether to use compressed or uncompressed keys (see below)
   // computeAddress,
-  // recoverAddress,
+  recoverAddress,
+  verifyTypedData,
+  verifyTypedDataBtc,
+  verifyMessage,
+  verifyMessageBtc,
+  recoverAddressBtc,
   // Qtum uses a different hash prefix for messages, use these ethers replacement functions
   // hashMessage,
   // messagePrefix
@@ -183,6 +191,9 @@ const encryptionKeyDisplay = document.getElementById('encryptionKeyDisplay');
 const ciphertextDisplay = document.getElementById('ciphertextDisplay');
 const cleartextDisplay = document.getElementById('cleartextDisplay');
 
+// Signature type
+const rsv = document.getElementById('rsv');
+
 // Ethereum Signature Section
 const ethSign = document.getElementById('ethSign');
 const ethSignResult = document.getElementById('ethSignResult');
@@ -250,6 +261,10 @@ const addEthereumChain = document.getElementById('addEthereumChain');
 const switchEthereumChain = document.getElementById('switchEthereumChain');
 
 const initialize = async () => {
+  function isRSV() {
+    return rsv.checked;
+  }
+
   try {
     // We must specify the network as 'any' for ethers to allow network changes
     ethersProvider = new ethers.providers.Web3Provider(window.qtum, 'any');
@@ -1244,7 +1259,7 @@ const initialize = async () => {
       const msg =
         '0x879a053d4800c6354e76c7985a865d2922c82fb5b3f4577b2fe08b998954f2e0';
       const ethResult = await ethereum.request({
-        method: 'eth_sign',
+        method: `${isRSV() ? 'eth' : 'btc'}_sign`,
         params: [accounts[0], msg],
       });
       ethSignResult.innerHTML = JSON.stringify(ethResult);
@@ -1263,7 +1278,7 @@ const initialize = async () => {
       const from = accounts[0];
       const msg = `0x${Buffer.from(exampleMessage, 'utf8').toString('hex')}`;
       const sign = await ethereum.request({
-        method: 'personal_sign',
+        method: isRSV() ? 'personal_sign' : 'btc_personalSign',
         params: [msg, from, 'Example password'],
       });
       personalSignResult.innerHTML = sign;
@@ -1283,7 +1298,7 @@ const initialize = async () => {
       const from = accounts[0];
       const msg = `0x${Buffer.from(siweMessage, 'utf8').toString('hex')}`;
       const sign = await ethereum.request({
-        method: 'personal_sign',
+        method: isRSV() ? 'presonal_sign' : 'btc_personalSign',
         params: [msg, from, 'Example password'],
       });
       siweResult.innerHTML = sign;
@@ -1350,13 +1365,24 @@ const initialize = async () => {
     const exampleMessage = 'Example `personal_sign` message';
     try {
       const from = accounts[0];
-      const msg = `0x${Buffer.from(exampleMessage, 'utf8').toString('hex')}`;
+      /*
+      const msg = `${Buffer.from(exampleMessage, 'utf8').toString('hex')}`;
+      */
+      const msg = exampleMessage;
+      /*
+      const hash = hashMessage(msg);
+      */
       const sign = personalSignResult.innerHTML;
+      const recoveredAddr = isRSV()
+        ? verifyMessage(msg, sign)
+        : verifyMessageBtc(msg, sign);
+      /*
       const recoveredAddr = recoverPersonalSignature({
         data: msg,
         sig: sign,
       });
-      if (recoveredAddr === from) {
+      */
+      if (recoveredAddr.toLowerCase() === from.toLowerCase()) {
         console.log(`SigUtil Successfully verified signer as ${recoveredAddr}`);
         personalSignVerifySigUtilResult.innerHTML = recoveredAddr;
       } else {
@@ -1366,8 +1392,8 @@ const initialize = async () => {
         console.log(`Failed comparing ${recoveredAddr} to ${from}`);
       }
       const ecRecoverAddr = await ethereum.request({
-        method: 'personal_ecRecover',
-        params: [msg, sign],
+        method: `${isRSV() ? 'personal' : 'btc'}_ecRecover`,
+        params: [msg, sign, from],
       });
       if (ecRecoverAddr === from) {
         console.log(`Successfully ecRecovered signer as ${ecRecoverAddr}`);
@@ -1403,7 +1429,7 @@ const initialize = async () => {
     try {
       const from = accounts[0];
       const sign = await ethereum.request({
-        method: 'eth_signTypedData',
+        method: `${isRSV() ? 'eth' : 'btc'}_signTypedData`,
         params: [msgParams, from],
       });
       signTypedDataResult.innerHTML = sign;
@@ -1433,10 +1459,16 @@ const initialize = async () => {
     try {
       const from = accounts[0];
       const sign = signTypedDataResult.innerHTML;
+      const hash = typedSignatureHash(msgParams);
+      const recoveredAddr = isRSV()
+        ? recoverAddress(hash, sign)
+        : recoverAddressBtc(hash, sign);
+      /*
       const recoveredAddr = await recoverTypedSignatureLegacy({
         data: msgParams,
         sig: sign,
       });
+      */
       if (toChecksumAddress(recoveredAddr) === toChecksumAddress(from)) {
         console.log(`Successfully verified signer as ${recoveredAddr}`);
         signTypedDataVerifyResult.innerHTML = recoveredAddr;
@@ -1498,7 +1530,7 @@ const initialize = async () => {
     try {
       const from = accounts[0];
       const sign = await ethereum.request({
-        method: 'eth_signTypedData_v3',
+        method: `${isRSV() ? 'eth' : 'btc'}_signTypedData_v3`,
         params: [from, JSON.stringify(msgParams)],
       });
       signTypedDataV3Result.innerHTML = sign;
@@ -1518,12 +1550,14 @@ const initialize = async () => {
 
     const msgParams = {
       types: {
+        /*
         EIP712Domain: [
           { name: 'name', type: 'string' },
           { name: 'version', type: 'string' },
           { name: 'chainId', type: 'uint256' },
           { name: 'verifyingContract', type: 'address' },
         ],
+        */
         Person: [
           { name: 'name', type: 'string' },
           { name: 'wallet', type: 'address' },
@@ -1556,10 +1590,15 @@ const initialize = async () => {
     try {
       const from = accounts[0];
       const sign = signTypedDataV3Result.innerHTML;
+      const recoveredAddr = (
+        (await isRSV()) ? verifyTypedData : verifyTypedDataBtc
+      )(msgParams.domain, msgParams.types, msgParams.message, sign, from);
+      /*
       const recoveredAddr = await recoverTypedSignature({
         data: msgParams,
         sig: sign,
       });
+      */
       if (toChecksumAddress(recoveredAddr) === toChecksumAddress(from)) {
         console.log(`Successfully verified signer as ${recoveredAddr}`);
         signTypedDataV3VerifyResult.innerHTML = recoveredAddr;
@@ -1615,10 +1654,12 @@ const initialize = async () => {
           { name: 'chainId', type: 'uint256' },
           { name: 'verifyingContract', type: 'address' },
         ],
+        /*
         Group: [
           { name: 'name', type: 'string' },
           { name: 'members', type: 'Person[]' },
         ],
+        */
         Mail: [
           { name: 'from', type: 'Person' },
           { name: 'to', type: 'Person[]' },
@@ -1633,7 +1674,7 @@ const initialize = async () => {
     try {
       const from = accounts[0];
       const sign = await ethereum.request({
-        method: 'eth_signTypedData_v4',
+        method: `${isRSV() ? 'eth' : 'btc'}_signTypedData_v4`,
         params: [from, JSON.stringify(msgParams)],
       });
       signTypedDataV4Result.innerHTML = sign;
@@ -1679,6 +1720,7 @@ const initialize = async () => {
       },
       primaryType: 'Mail',
       types: {
+        /*
         EIP712Domain: [
           { name: 'name', type: 'string' },
           { name: 'version', type: 'string' },
@@ -1689,6 +1731,7 @@ const initialize = async () => {
           { name: 'name', type: 'string' },
           { name: 'members', type: 'Person[]' },
         ],
+        */
         Mail: [
           { name: 'from', type: 'Person' },
           { name: 'to', type: 'Person[]' },
@@ -1703,10 +1746,19 @@ const initialize = async () => {
     try {
       const from = accounts[0];
       const sign = signTypedDataV4Result.innerHTML;
+      const recoveredAddr = (isRSV() ? verifyTypedData : verifyTypedDataBtc)(
+        msgParams.domain,
+        msgParams.types,
+        msgParams.message,
+        sign,
+        from,
+      );
+      /*
       const recoveredAddr = recoverTypedSignatureV4({
         data: msgParams,
         sig: sign,
       });
+      */
       if (toChecksumAddress(recoveredAddr) === toChecksumAddress(from)) {
         console.log(`Successfully verified signer as ${recoveredAddr}`);
         signTypedDataV4VerifyResult.innerHTML = recoveredAddr;
@@ -1762,11 +1814,19 @@ const initialize = async () => {
     const splitSig = (sig) => {
       const pureSig = sig.replace('0x', '');
 
-      const _r = Buffer.from(pureSig.substring(0, 64), 'hex');
-      const _s = Buffer.from(pureSig.substring(64, 128), 'hex');
-      const _v = Buffer.from(
-        parseInt(pureSig.substring(128, 130), 16).toString(),
-      );
+      if (isRSV()) {
+        const _r = Buffer.from(pureSig.substring(0, 64), 'hex');
+        const _s = Buffer.from(pureSig.substring(64, 128), 'hex');
+        const _v = Buffer.from(
+          parseInt(pureSig.substring(128, 130), 16).toString(),
+        );
+
+        return { _r, _s, _v };
+      }
+
+      const _r = Buffer.from(pureSig.substring(2, 66), 'hex');
+      const _s = Buffer.from(pureSig.substring(66, 130), 'hex');
+      const _v = Buffer.from(parseInt(pureSig.substring(0, 2), 16).toString());
 
       return { _r, _s, _v };
     };
@@ -1788,7 +1848,7 @@ const initialize = async () => {
 
     try {
       sign = await ethereum.request({
-        method: 'eth_signTypedData_v4',
+        method: `${isRSV() ? 'eth' : 'btc'}_signTypedData_v4`,
         params: [from, JSON.stringify(msgParams)],
       });
       const { _r, _s, _v } = splitSig(sign);
@@ -1822,12 +1882,14 @@ const initialize = async () => {
       chainId,
     };
 
+    /*
     const EIP712Domain = [
       { name: 'name', type: 'string' },
       { name: 'version', type: 'string' },
       { name: 'verifyingContract', type: 'address' },
       { name: 'chainId', type: 'uint256' },
     ];
+    */
 
     const permit = {
       owner: from,
@@ -1847,7 +1909,9 @@ const initialize = async () => {
 
     const msgParams = {
       types: {
+        /*
         EIP712Domain,
+        */
         Permit,
       },
       primaryType: 'Permit',
@@ -1856,10 +1920,19 @@ const initialize = async () => {
     };
     try {
       const sign = signPermitResult.innerHTML;
+      const recoveredAddr = (isRSV() ? verifyTypedData : verifyTypedDataBtc)(
+        msgParams.domain,
+        msgParams.types,
+        msgParams.message,
+        sign,
+        from,
+      );
+      /*
       const recoveredAddr = recoverTypedSignatureV4({
         data: msgParams,
         sig: sign,
       });
+      */
       if (toChecksumAddress(recoveredAddr) === toChecksumAddress(from)) {
         console.log(`Successfully verified signer as ${recoveredAddr}`);
         signPermitVerifyResult.innerHTML = recoveredAddr;
